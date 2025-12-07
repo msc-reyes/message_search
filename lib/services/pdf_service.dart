@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:path/path.dart' as path;
 import '../models/message.dart';
 
 class PDFService {
@@ -20,7 +22,7 @@ class PDFService {
         print('✅ Texto extraído con pdftotext');
       } catch (e) {
         // Si falla, usar Syncfusion como fallback
-        print('⚠️ pdftotext no disponible, usando Syncfusion');
+        print('⚠️ pdftotext no disponible, usando Syncfusion: $e');
         extractedText = await _extractWithSyncfusion(file);
       }
       
@@ -35,17 +37,38 @@ class PDFService {
 
   // Extraer con pdftotext (Poppler) - MÁS PRECISO
   Future<String> _extractWithPdfToText(String pdfPath) async {
-    // Ejecutar pdftotext
-    final result = await Process.run(
-      'pdftotext',
-      ['-layout', pdfPath, '-'],
-    );
+    File? tempFile;
     
-    if (result.exitCode != 0) {
-      throw Exception('pdftotext falló: ${result.stderr}');
+    try {
+      // Crear archivo temporal para la salida
+      final tempDir = Directory.systemTemp;
+      tempFile = File(path.join(tempDir.path, 'pdftotext_output_${DateTime.now().millisecondsSinceEpoch}.txt'));
+      
+      // Ejecutar pdftotext escribiendo a archivo temporal
+      final result = await Process.run(
+        'pdftotext',
+        [
+          '-layout',
+          '-enc', 'UTF-8',
+          pdfPath,
+          tempFile.path  // ← Escribir a archivo en lugar de stdout
+        ],
+      );
+      
+      if (result.exitCode != 0) {
+        throw Exception('pdftotext falló: ${result.stderr}');
+      }
+      
+      // Leer el archivo temporal con UTF-8
+      final text = await tempFile.readAsString(encoding: utf8);
+      
+      return text;
+    } finally {
+      // Limpiar archivo temporal
+      if (tempFile != null && await tempFile.exists()) {
+        await tempFile.delete();
+      }
     }
-    
-    return result.stdout.toString();
   }
 
   // Extraer con Syncfusion - FALLBACK

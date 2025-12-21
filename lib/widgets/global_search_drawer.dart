@@ -2,21 +2,31 @@ import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../database/database_helper.dart';
 
+class MatchOccurrence {
+  final String snippet;
+  final int position;
+
+  MatchOccurrence({
+    required this.snippet,
+    required this.position,
+  });
+}
+
 class SearchResult {
   final Message message;
-  final String snippet;
+  final List<MatchOccurrence> occurrences;
   final int matchCount;
 
   SearchResult({
     required this.message,
-    required this.snippet,
+    required this.occurrences,
     required this.matchCount,
   });
 }
 
 class GlobalSearchDrawer extends StatefulWidget {
   final List<Message> messages;
-  final Function(Message) onMessageSelected;
+  final Function(Message message, {int? scrollToPosition, String? searchQuery}) onMessageSelected;
   final bool useDummyData;
 
   const GlobalSearchDrawer({
@@ -35,12 +45,14 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   
   List<SearchResult> _searchResults = [];
+  final Set<int> _expandedResults = {};
   bool _isSearching = false;
+  String _currentSearchQuery = '';
 
   // Normalizar texto removiendo acentos y convirtiendo a minúsculas
   String _normalize(String text) {
-    const withAccents = 'áéíóúÁÉÍÓÚñÑ';
-    const withoutAccents = 'aeiouAEIOUnN';
+    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
+    const withoutAccents = 'aeiouAEIOUnNuU';
     String normalized = text.toLowerCase();
 
     for (int i = 0; i < withAccents.length; i++) {
@@ -54,6 +66,8 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
+        _expandedResults.clear();
+        _currentSearchQuery = '';
         _isSearching = false;
       });
       return;
@@ -61,6 +75,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
 
     setState(() {
       _isSearching = true;
+      _currentSearchQuery = query.trim();
     });
 
     try {
@@ -74,6 +89,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
     } catch (e) {
       setState(() {
         _searchResults = [];
+        _expandedResults.clear();
         _isSearching = false;
       });
       
@@ -92,33 +108,31 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
 
     for (final message in widget.messages) {
       final normalizedContent = _normalize(message.content);
-      final normalizedTitle = _normalize(message.title);
+      final occurrences = <MatchOccurrence>[];
 
-      // Buscar coincidencias
-      final contentMatches = normalizedContent.contains(normalizedQuery);
-      final titleMatches = normalizedTitle.contains(normalizedQuery);
-
-      if (contentMatches || titleMatches) {
-        // Contar coincidencias
-        int matchCount = 0;
-        int index = 0;
-        while (
-            (index = normalizedContent.indexOf(normalizedQuery, index)) != -1) {
-          matchCount++;
-          index += normalizedQuery.length;
-        }
-
-        // Extraer snippet
-        String snippet = _extractSnippet(
+      // Encontrar todas las coincidencias
+      int index = 0;
+      while ((index = normalizedContent.indexOf(normalizedQuery, index)) != -1) {
+        final snippet = _extractSnippet(
           message.content,
           normalizedContent,
           normalizedQuery,
+          index,
         );
+        
+        occurrences.add(MatchOccurrence(
+          snippet: snippet,
+          position: index,
+        ));
+        
+        index += normalizedQuery.length;
+      }
 
+      if (occurrences.isNotEmpty) {
         results.add(SearchResult(
           message: message,
-          snippet: snippet,
-          matchCount: matchCount,
+          occurrences: occurrences,
+          matchCount: occurrences.length,
         ));
       }
     }
@@ -134,14 +148,39 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
 
   Future<void> _performDatabaseSearch(String query) async {
     final dbResults = await _dbHelper.searchFullText(query);
-    
-    final results = dbResults.map((dbResult) {
-      return SearchResult(
-        message: dbResult.message,
-        snippet: dbResult.snippet,
-        matchCount: dbResult.matchCount,
-      );
-    }).toList();
+    final results = <SearchResult>[];
+    final normalizedQuery = _normalize(query.trim());
+
+    for (final dbResult in dbResults) {
+      final normalizedContent = _normalize(dbResult.message.content);
+      final occurrences = <MatchOccurrence>[];
+
+      // Encontrar todas las coincidencias individuales
+      int index = 0;
+      while ((index = normalizedContent.indexOf(normalizedQuery, index)) != -1) {
+        final snippet = _extractSnippet(
+          dbResult.message.content,
+          normalizedContent,
+          normalizedQuery,
+          index,
+        );
+        
+        occurrences.add(MatchOccurrence(
+          snippet: snippet,
+          position: index,
+        ));
+        
+        index += normalizedQuery.length;
+      }
+
+      if (occurrences.isNotEmpty) {
+        results.add(SearchResult(
+          message: dbResult.message,
+          occurrences: occurrences,
+          matchCount: occurrences.length,
+        ));
+      }
+    }
 
     setState(() {
       _searchResults = results;
@@ -150,14 +189,14 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
   }
 
   String _extractSnippet(
-      String originalContent, String normalizedContent, String query) {
-    final index = normalizedContent.indexOf(query);
-    if (index == -1) return '';
-
+      String originalContent, 
+      String normalizedContent, 
+      String query,
+      int matchIndex) {
+    
     const snippetRadius = 80;
-    final start = (index - snippetRadius).clamp(0, originalContent.length);
-    final end =
-        (index + query.length + snippetRadius).clamp(0, originalContent.length);
+    final start = (matchIndex - snippetRadius).clamp(0, originalContent.length);
+    final end = (matchIndex + query.length + snippetRadius).clamp(0, originalContent.length);
 
     String snippet = originalContent.substring(start, end).trim();
 
@@ -169,25 +208,34 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
 
   String _formatDate(DateTime date) {
     const months = [
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic'
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
+  void _toggleExpanded(int index) {
+    setState(() {
+      if (_expandedResults.contains(index)) {
+        _expandedResults.remove(index);
+      } else {
+        _expandedResults.add(index);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalMatches = _searchResults.fold<int>(
+      0, 
+      (sum, result) => sum + result.matchCount
+    );
+
+    // Ancho del drawer: 40% más ancho que el default
+    final drawerWidth = MediaQuery.of(context).size.width * 0.45;
+
     return Drawer(
+      width: drawerWidth,
       child: Column(
         children: [
           // Header
@@ -203,7 +251,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                 children: [
                   Text(
                     'Búsqueda Global',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Theme.of(context)
                               .colorScheme
@@ -215,7 +263,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                     widget.useDummyData
                         ? 'Buscar en datos de prueba'
                         : 'Buscar en todos los mensajes',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: Theme.of(context)
                               .colorScheme
                               .onSecondaryContainer
@@ -234,9 +282,11 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
               children: [
                 TextField(
                   controller: _searchController,
+                  style: const TextStyle(fontSize: 16),
                   decoration: InputDecoration(
-                    hintText: 'Frase exacta o palabras clave...',
-                    prefixIcon: const Icon(Icons.search),
+                    hintText: 'Escribe tu búsqueda...',
+                    hintStyle: const TextStyle(fontSize: 16),
+                    prefixIcon: const Icon(Icons.search, size: 24),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
@@ -279,17 +329,19 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
             color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
           ),
 
-          // Resultados
+          // Resultados header
           if (_searchResults.isNotEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Text(
-                    'Resultados (${_searchResults.length})',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Flexible(
+                    child: Text(
+                      '$totalMatches coincidencia${totalMatches != 1 ? 's' : ''} en ${_searchResults.length} mensaje${_searchResults.length != 1 ? 's' : ''}',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
                   ),
                   if (!widget.useDummyData) ...[
                     const SizedBox(width: 8),
@@ -335,7 +387,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                       children: [
                         Icon(
                           Icons.search,
-                          size: 64,
+                          size: 80,
                           color: Theme.of(context)
                               .colorScheme
                               .onSurface
@@ -347,7 +399,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                               ? 'Ingresa una búsqueda'
                               : 'No se encontraron resultados',
                           style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
                                     color: Theme.of(context)
                                         .colorScheme
                                         .onSurface
@@ -361,98 +413,206 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                     itemCount: _searchResults.length,
                     itemBuilder: (context, index) {
                       final result = _searchResults[index];
+                      final isExpanded = _expandedResults.contains(index);
+                      
                       return Card(
                         margin: const EdgeInsets.symmetric(
                           horizontal: 12,
                           vertical: 6,
                         ),
-                        child: InkWell(
-                          onTap: () => widget.onMessageSelected(result.message),
-                          borderRadius: BorderRadius.circular(12),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Título
-                                Text(
-                                  result.message.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Fecha y contador
-                                Row(
+                        child: Column(
+                          children: [
+                            // Header del mensaje (siempre visible)
+                            InkWell(
+                              onTap: () => _toggleExpanded(index),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(
-                                      Icons.calendar_today,
-                                      size: 12,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withOpacity(0.6),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            result.message.title,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                          ),
+                                        ),
+                                        Icon(
+                                          isExpanded
+                                              ? Icons.expand_less
+                                              : Icons.expand_more,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      _formatDate(result.message.date),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today,
+                                          size: 14,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurface
+                                              .withOpacity(0.6),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          _formatDate(result.message.date),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurface
+                                                    .withOpacity(0.6),
+                                              ),
+                                        ),
+                                        const Spacer(),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
                                             color: Theme.of(context)
                                                 .colorScheme
-                                                .onSurface
-                                                .withOpacity(0.6),
+                                                .primaryContainer,
+                                            borderRadius: BorderRadius.circular(12),
                                           ),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer,
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${result.matchCount} ${result.matchCount == 1 ? 'coincidencia' : 'coincidencias'}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onPrimaryContainer,
-                                            ),
-                                      ),
+                                          child: Text(
+                                            '${result.matchCount} ${result.matchCount == 1 ? 'coincidencia' : 'coincidencias'}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .onPrimaryContainer,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-
-                                // Snippet
-                                Text(
-                                  result.snippet,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.copyWith(
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                              ),
                             ),
-                          ),
+                            
+                            // Lista de coincidencias (expandible)
+                            if (isExpanded)
+                              Column(
+                                children: [
+                                  Divider(
+                                    height: 1,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outline
+                                        .withOpacity(0.3),
+                                  ),
+                                  ListView.builder(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: result.occurrences.length,
+                                    itemBuilder: (context, occIndex) {
+                                      final occurrence = result.occurrences[occIndex];
+                                      
+                                      return InkWell(
+                                        onTap: () {
+                                          widget.onMessageSelected(
+                                            result.message,
+                                            scrollToPosition: occurrence.position,
+                                            searchQuery: _currentSearchQuery,
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 8,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              bottom: occIndex < result.occurrences.length - 1
+                                                  ? BorderSide(
+                                                      color: Theme.of(context)
+                                                          .colorScheme
+                                                          .outline
+                                                          .withOpacity(0.1),
+                                                    )
+                                                  : BorderSide.none,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                  right: 8,
+                                                  top: 2,
+                                                ),
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Theme.of(context)
+                                                      .colorScheme
+                                                      .secondaryContainer,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  '${occIndex + 1}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .onSecondaryContainer,
+                                                  ),
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: Text(
+                                                  occurrence.snippet,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodyMedium
+                                                      ?.copyWith(
+                                                        fontStyle: FontStyle.italic,
+                                                      ),
+                                                  maxLines: 3,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              Icon(
+                                                Icons.arrow_forward_ios,
+                                                size: 14,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       );
                     },

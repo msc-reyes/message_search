@@ -58,17 +58,30 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  // Normalizar texto removiendo acentos y convirtiendo a minúsculas
+  String _normalize(String text) {
+    const withAccents = 'áéíóúÁÉÍÓÚñÑüÜ';
+    const withoutAccents = 'aeiouAEIOUnNuU';
+    String normalized = text.toLowerCase();
+
+    for (int i = 0; i < withAccents.length; i++) {
+      normalized = normalized.replaceAll(withAccents[i], withoutAccents[i]);
+    }
+
+    return normalized;
+  }
+
   int _countMatches(String text, String query) {
     if (query.isEmpty) return 0;
     
-    final lowerText = text.toLowerCase();
-    final lowerQuery = query.toLowerCase();
+    final normalizedText = _normalize(text);
+    final normalizedQuery = _normalize(query);
     int count = 0;
     int index = 0;
     
     _matchPositions.clear();
     
-    while ((index = lowerText.indexOf(lowerQuery, index)) != -1) {
+    while ((index = normalizedText.indexOf(normalizedQuery, index)) != -1) {
       _matchPositions.add(index);
       count++;
       index += query.length;
@@ -196,21 +209,45 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  void _onMessageSelected(Message message) {
+  void _onMessageSelected(Message message, {int? scrollToPosition, String? searchQuery}) {
     setState(() {
       _currentMessage = message;
-      _searchQuery = '';
-      _searchController.clear();
+      if (searchQuery != null) {
+        _searchQuery = searchQuery;
+        _searchController.text = searchQuery;
+      } else {
+        _searchQuery = '';
+        _searchController.clear();
+      }
       _currentMatchIndex = 0;
       _matchPositions.clear();
     });
     Navigator.of(context).pop();
-    _scrollToTop();
+    
+    if (scrollToPosition != null) {
+      // Navegar a una posición específica
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_messageScrollController.hasClients) {
+          final totalChars = _currentMessage?.content.length ?? 1;
+          final scrollRatio = scrollToPosition / totalChars;
+          final maxScroll = _messageScrollController.position.maxScrollExtent;
+          final targetScroll = (maxScroll * scrollRatio).clamp(0.0, maxScroll);
+          
+          _messageScrollController.animateTo(
+            targetScroll,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+        }
+      });
+    } else {
+      _scrollToTop();
+    }
   }
 
   void _onSearchInCurrentMessage(String query) {
     setState(() {
-      _searchQuery = query.toLowerCase();
+      _searchQuery = query;
       _currentMatchIndex = 0;
     });
   }
@@ -233,12 +270,13 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     final List<TextSpan> spans = [];
-    final lowerText = text.toLowerCase();
+    final normalizedText = _normalize(text);
+    final normalizedQuery = _normalize(_searchQuery);
     int start = 0;
     int matchIndex = 0;
 
     while (start < text.length) {
-      final index = lowerText.indexOf(_searchQuery, start);
+      final index = normalizedText.indexOf(normalizedQuery, start);
       if (index == -1) {
         spans.add(TextSpan(text: text.substring(start)));
         break;
@@ -253,19 +291,19 @@ class _MainScreenState extends State<MainScreen> {
       
       spans.add(
         TextSpan(
-          text: text.substring(index, index + _searchQuery.length),
+          text: text.substring(index, index + normalizedQuery.length),
           style: TextStyle(
-            backgroundColor: isCurrentMatch 
-                ? Colors.orange  // Coincidencia actual
-                : Colors.yellow.withOpacity(0.5),  // Otras coincidencias
-            fontWeight: FontWeight.bold,
-            color: isCurrentMatch ? Colors.white : null,
+            backgroundColor: isCurrentMatch
+                ? Colors.orange
+                : Colors.yellow,
+            color: Colors.black,
+            fontWeight: isCurrentMatch ? FontWeight.bold : FontWeight.normal,
           ),
         ),
       );
 
       matchIndex++;
-      start = index + _searchQuery.length;
+      start = index + normalizedQuery.length;
     }
 
     return spans;
@@ -274,30 +312,21 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final currentFontSize = _baseFontSize * _fontSizeMultiplier;
-    
-    final matchCount = _currentMessage != null && _searchQuery.isNotEmpty
+    final matchCount = _currentMessage != null
         ? _countMatches(_currentMessage!.content, _searchQuery)
         : 0;
-    
+
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          onPressed: () {
-            _scaffoldKey.currentState?.openDrawer();
-          },
-        ),
         title: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(20),
-          ),
+          constraints: const BoxConstraints(maxWidth: 500),
           child: TextField(
             controller: _searchController,
+            style: const TextStyle(fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Búsqueda en mensaje actual...',
+              hintText: 'Buscar en mensaje actual...',
+              hintStyle: const TextStyle(fontSize: 14),
               prefixIcon: const Icon(Icons.search, size: 20),
               suffixIcon: _searchQuery.isNotEmpty
                   ? Row(
@@ -397,7 +426,7 @@ class _MainScreenState extends State<MainScreen> {
       drawer: MessageListDrawer(
         messages: _messages,
         currentMessage: _currentMessage,
-        onMessageSelected: _onMessageSelected,
+        onMessageSelected: (message) => _onMessageSelected(message),
         useDummyData: _useDummyData,
       ),
       endDrawer: GlobalSearchDrawer(
@@ -472,90 +501,107 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildMessageViewer(double fontSize) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 800),
-        child: SingleChildScrollView(
-          key: _contentKey,
-          controller: _messageScrollController,
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_useDummyData)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
-                    border: Border.all(color: Colors.orange),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: Colors.orange),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Mostrando datos de prueba. Importa PDFs para ver tus mensajes reales.',
-                          style: TextStyle(color: Colors.orange.shade700),
+    return CustomScrollView(
+      controller: _messageScrollController,
+      slivers: [
+        // Header sticky
+        SliverAppBar(
+          pinned: true,
+          expandedHeight: 0,
+          toolbarHeight: kToolbarHeight + 60,
+          automaticallyImplyLeading: false,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          surfaceTintColor: Theme.of(context).colorScheme.surfaceTint,
+          elevation: 2,
+          shadowColor: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
+          flexibleSpace: Container(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_useDummyData)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      border: Border.all(color: Colors.orange),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Datos de prueba',
+                          style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              Text(
-                _currentMessage!.title,
-                style: TextStyle(
-                  fontSize: fontSize * 1.5,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: fontSize * 0.9,
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _formatDate(_currentMessage!.date),
-                    style: TextStyle(
-                      fontSize: fontSize * 0.9,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withOpacity(0.6),
+                      ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              Divider(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-              ),
-              const SizedBox(height: 24),
-
-              RichText(
-                text: TextSpan(
+                Text(
+                  _currentMessage!.title,
                   style: TextStyle(
-                    fontSize: fontSize,
-                    color: Theme.of(context).textTheme.bodyLarge?.color,
-                    height: 1.6,
+                    fontSize: fontSize * 1.2,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
-                  children: _highlightSearchText(_currentMessage!.content),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              const SizedBox(height: 48),
-            ],
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: fontSize * 0.8,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _formatDate(_currentMessage!.date),
+                      style: TextStyle(
+                        fontSize: fontSize * 0.8,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
+
+        // Contenido del mensaje
+        SliverPadding(
+          padding: const EdgeInsets.all(24),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 800),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                          height: 1.6,
+                        ),
+                        children: _highlightSearchText(_currentMessage!.content),
+                      ),
+                    ),
+                    const SizedBox(height: 48),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

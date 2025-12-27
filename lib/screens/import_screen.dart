@@ -13,7 +13,7 @@ class ImportScreen extends StatefulWidget {
 }
 
 class _ImportScreenState extends State<ImportScreen> {
-  final PDFService _pdfService = PDFService();
+  final PdfService _pdfService = PdfService();
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   
   bool _isImporting = false;

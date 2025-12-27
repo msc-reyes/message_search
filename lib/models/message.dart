@@ -2,6 +2,8 @@ class Message {
   final int? id;
   final String title;
   final DateTime date;
+  final String preacher;
+  final String location;
   final String content;
   final String pdfPath;
 
@@ -9,6 +11,8 @@ class Message {
     this.id,
     required this.title,
     required this.date,
+    required this.preacher,
+    required this.location,
     required this.content,
     required this.pdfPath,
   });
@@ -19,6 +23,8 @@ class Message {
       'id': id,
       'title': title,
       'date': date.toIso8601String(),
+      'preacher': preacher,
+      'location': location,
       'content': content,
       'pdf_path': pdfPath,
       'created_at': DateTime.now().toIso8601String(),
@@ -31,6 +37,8 @@ class Message {
       id: map['id'] as int?,
       title: map['title'] as String,
       date: DateTime.parse(map['date'] as String),
+      preacher: map['preacher'] as String,
+      location: map['location'] as String,
       content: map['content'] as String,
       pdfPath: map['pdf_path'] as String,
     );
@@ -41,6 +49,8 @@ class Message {
     int? id,
     String? title,
     DateTime? date,
+    String? preacher,
+    String? location,
     String? content,
     String? pdfPath,
   }) {
@@ -48,13 +58,15 @@ class Message {
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
+      preacher: preacher ?? this.preacher,
+      location: location ?? this.location,
       content: content ?? this.content,
       pdfPath: pdfPath ?? this.pdfPath,
     );
   }
 }
 
-// Datos dummy para pruebas (se mantendrán hasta que uses la DB)
+// Datos dummy para pruebas (actualizados con preacher y location)
 class DummyData {
   static List<Message> getMessages() {
     return [
@@ -62,7 +74,11 @@ class DummyData {
         id: 1,
         title: "El Fundamento de Nuestra Fe",
         date: DateTime(2010, 3, 5),
-        content: """El fundamento de nuestra fe está en Jesucristo. 
+        preacher: "Predicado por el Hno. Bernabé G. García",
+        location: "En Phoenix, Arizona U.S.A",
+        content: """Vamos a ponernos de pie para leer la Palabra.
+
+El fundamento de nuestra fe está en Jesucristo. 
         
 Él es la roca sobre la cual edificamos nuestra vida espiritual. En Mateo 7:24-25 leemos: "Cualquiera, pues, que me oye estas palabras, y las hace, le compararé a un hombre prudente, que edificó su casa sobre la roca."
 
@@ -77,7 +93,11 @@ Recordemos siempre que Él es fiel y verdadero, y que Su amor por nosotros nunca
         id: 2,
         title: "La Gracia Transformadora de Dios",
         date: DateTime(2010, 8, 15),
-        content: """La gracia de Dios es verdaderamente transformadora.
+        preacher: "Predicado por el Hno. Bernabé G. García",
+        location: "En Phoenix, Arizona U.S.A",
+        content: """Vamos a ponernos de pie para leer la Palabra.
+
+La gracia de Dios es verdaderamente transformadora.
 
 No es algo que podamos ganar o merecer, sino un regalo divino que nos es dado por amor. Efesios 2:8-9 nos dice: "Porque por gracia sois salvos por medio de la fe; y esto no de vosotros, pues es don de Dios; no por obras, para que nadie se gloríe."
 
@@ -92,7 +112,11 @@ Vivamos cada día agradecidos por esta gracia maravillosa que nos ha sido dada. 
         id: 3,
         title: "El Amor de Dios Manifestado",
         date: DateTime(2011, 2, 20),
-        content: """El amor de Dios ha sido manifestado de muchas maneras.
+        preacher: "Predicado por el Hno. Bernabé G. García",
+        location: "En Phoenix, Arizona U.S.A",
+        content: """Vamos a ponernos de pie para leer la Palabra.
+
+El amor de Dios ha sido manifestado de muchas maneras.
 
 Juan 3:16 nos revela la máxima expresión de Su amor: "Porque de tal manera amó Dios al mundo, que ha dado a su Hijo unigénito, para que todo aquel que en él cree, no se pierda, mas tenga vida eterna."
 
@@ -109,7 +133,11 @@ Que podamos experimentar cada día más de este amor incomparable. Que nuestro c
         id: 4,
         title: "La Fidelidad de Dios en Tiempos Difíciles",
         date: DateTime(2012, 6, 10),
-        content: """La fidelidad de Dios permanece constante, especialmente en tiempos difíciles.
+        preacher: "Predicado por el Hno. Bernabé G. García",
+        location: "En Phoenix, Arizona U.S.A",
+        content: """Vamos a ponernos de pie para leer la Palabra.
+
+La fidelidad de Dios permanece constante, especialmente en tiempos difíciles.
 
 Lamentaciones 3:22-23 nos recuerda: "Por la misericordia de Jehová no hemos sido consumidos, porque nunca decayeron sus misericordias. Nuevas son cada mañana; grande es tu fidelidad."
 
@@ -126,7 +154,11 @@ En momentos de duda, recordemos las veces que Él nos ha sostenido. Cada prueba 
         id: 5,
         title: "Viviendo en el Espíritu",
         date: DateTime(2013, 11, 3),
-        content: """Vivir en el Espíritu es más que una doctrina; es una realidad diaria.
+        preacher: "Predicado por el Hno. Bernabé G. García",
+        location: "En Phoenix, Arizona U.S.A",
+        content: """Vamos a ponernos de pie para leer la Palabra.
+
+Vivir en el Espíritu es más que una doctrina; es una realidad diaria.
 
 Gálatas 5:16 nos instruye: "Digo, pues: Andad en el Espíritu, y no satisfagáis los deseos de la carne." Esta es una invitación a una vida guiada y empoderada por el Espíritu Santo.
 

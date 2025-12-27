@@ -120,8 +120,13 @@ class _MainScreenState extends State<MainScreen> {
       final maxScroll = _messageScrollController.position.maxScrollExtent;
       final targetScroll = (maxScroll * scrollRatio).clamp(0.0, maxScroll);
       
+      // Centrar la coincidencia en la pantalla
+      final viewportHeight = _messageScrollController.position.viewportDimension;
+      final centerOffset = viewportHeight / 2;
+      final centeredScroll = (targetScroll - centerOffset).clamp(0.0, maxScroll);
+      
       _messageScrollController.animateTo(
-        targetScroll,
+        centeredScroll,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
@@ -233,8 +238,13 @@ class _MainScreenState extends State<MainScreen> {
           final maxScroll = _messageScrollController.position.maxScrollExtent;
           final targetScroll = (maxScroll * scrollRatio).clamp(0.0, maxScroll);
           
+          // Centrar la coincidencia en la pantalla
+          final viewportHeight = _messageScrollController.position.viewportDimension;
+          final centerOffset = viewportHeight / 2;
+          final centeredScroll = (targetScroll - centerOffset).clamp(0.0, maxScroll);
+          
           _messageScrollController.animateTo(
-            targetScroll,
+            centeredScroll,
             duration: const Duration(milliseconds: 500),
             curve: Curves.easeInOut,
           );
@@ -250,6 +260,14 @@ class _MainScreenState extends State<MainScreen> {
       _searchQuery = query;
       _currentMatchIndex = 0;
     });
+    
+    // Scroll automático a la primera coincidencia si hay búsqueda
+    if (query.isNotEmpty) {
+      // Usar addPostFrameCallback para que el setState se complete primero
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToMatch();
+      });
+    }
   }
 
   Future<void> _openImportScreen() async {
@@ -501,86 +519,138 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildMessageViewer(double fontSize) {
-    return CustomScrollView(
-      controller: _messageScrollController,
-      slivers: [
-        // Header sticky
-        SliverAppBar(
-          pinned: true,
-          expandedHeight: 0,
-          toolbarHeight: kToolbarHeight + 60,
-          automaticallyImplyLeading: false,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          surfaceTintColor: Theme.of(context).colorScheme.surfaceTint,
-          elevation: 2,
-          shadowColor: Theme.of(context).colorScheme.shadow.withOpacity(0.1),
-          flexibleSpace: Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (_useDummyData)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      border: Border.all(color: Colors.orange),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Datos de prueba',
-                          style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                Text(
-                  _currentMessage!.title,
-                  style: TextStyle(
-                    fontSize: fontSize * 1.2,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today,
-                      size: fontSize * 0.8,
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      _formatDate(_currentMessage!.date),
+    return Column(
+      children: [
+        // Header sticky (no usa SliverAppBar)
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            border: Border(
+              bottom: BorderSide(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                width: 1,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Theme.of(context).colorScheme.shadow.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Título con badge inline
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _currentMessage!.title,
                       style: TextStyle(
-                        fontSize: fontSize * 0.8,
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: fontSize * 0.95,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (_useDummyData)
+                    Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        'Prueba',
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Fecha y Predicador en misma línea
+              Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 10,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    _formatDate(_currentMessage!.date),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(
+                    Icons.person,
+                    size: 10,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      _currentMessage!.preacher,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Lugar
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on,
+                    size: 10,
+                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      _currentMessage!.location,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-
-        // Contenido del mensaje
-        SliverPadding(
-          padding: const EdgeInsets.all(24),
-          sliver: SliverToBoxAdapter(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
+        
+        // Contenido con scroll
+        Expanded(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: SingleChildScrollView(
+                controller: _messageScrollController,
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

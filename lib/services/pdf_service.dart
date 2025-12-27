@@ -1,217 +1,181 @@
 import 'dart:io';
-import 'dart:convert';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
-import 'package:path/path.dart' as path;
 import '../models/message.dart';
 
-class PDFService {
-  // Extraer texto de un archivo PDF
-  Future<String> extractTextFromPDF(String pdfPath) async {
-    try {
-      final File file = File(pdfPath);
-      
-      if (!await file.exists()) {
-        throw Exception('El archivo PDF no existe: $pdfPath');
-      }
+class PdfExtractionResult {
+  final String preacher;
+  final String location;
+  final String content;
 
-      String extractedText = '';
-      
-      // Intentar primero con pdftotext (más preciso)
-      try {
-        extractedText = await _extractWithPdfToText(pdfPath);
-        print('✅ Texto extraído con pdftotext');
-      } catch (e) {
-        // Si falla, usar Syncfusion como fallback
-        print('⚠️ pdftotext no disponible, usando Syncfusion: $e');
-        extractedText = await _extractWithSyncfusion(file);
-      }
-      
-      // Limpiar texto (solo limpieza básica)
-      extractedText = _cleanText(extractedText);
-      
-      return extractedText;
-    } catch (e) {
-      throw Exception('Error al extraer texto del PDF: $e');
-    }
+  PdfExtractionResult({
+    required this.preacher,
+    required this.location,
+    required this.content,
+  });
+}
+
+class PdfService {
+  /// Formato esperado del nombre de archivo: Título-DD-MM-AAAA.pdf
+  /// Ejemplo: "El Amor de Dios-15-08-2010.pdf"
+  static final RegExp _fileNamePattern = RegExp(
+    r'^(.+)-(\d{2})-(\d{2})-(\d{4})\.pdf$',
+    caseSensitive: false,
+  );
+
+  /// Valida si el nombre del archivo tiene el formato correcto
+  bool isValidFileName(String fileName) {
+    return _fileNamePattern.hasMatch(fileName);
   }
 
-  // Extraer con pdftotext (Poppler) - MÁS PRECISO
-  Future<String> _extractWithPdfToText(String pdfPath) async {
-    File? tempFile;
-    
-    try {
-      // Crear archivo temporal para la salida
-      final tempDir = Directory.systemTemp;
-      tempFile = File(path.join(tempDir.path, 'pdftotext_output_${DateTime.now().millisecondsSinceEpoch}.txt'));
-      
-      // Ejecutar pdftotext escribiendo a archivo temporal
-      final result = await Process.run(
-        'pdftotext',
-        [
-          '-layout',
-          '-enc', 'UTF-8',
-          pdfPath,
-          tempFile.path  // ← Escribir a archivo en lugar de stdout
-        ],
-      );
-      
-      if (result.exitCode != 0) {
-        throw Exception('pdftotext falló: ${result.stderr}');
-      }
-      
-      // Leer el archivo temporal con UTF-8
-      final text = await tempFile.readAsString(encoding: utf8);
-      
-      return text;
-    } finally {
-      // Limpiar archivo temporal
-      if (tempFile != null && await tempFile.exists()) {
-        await tempFile.delete();
-      }
-    }
+  /// Retorna un ejemplo del formato de nombre esperado
+  String getFileNameExample() {
+    return 'El Amor de Dios-15-08-2010.pdf';
   }
 
-  // Extraer con Syncfusion - FALLBACK
-  Future<String> _extractWithSyncfusion(File file) async {
-    final PdfDocument document = PdfDocument(inputBytes: await file.readAsBytes());
-    String extractedText = PdfTextExtractor(document).extractText();
-    document.dispose();
-    return extractedText;
-  }
-
-  // Limpiar texto - SOLO LIMPIEZA BÁSICA
-  String _cleanText(String text) {
-    // 1. Remover espacios múltiples (pero preservar saltos de línea)
-    text = text.replaceAll(RegExp(r'[ \t]+'), ' ');
-    
-    // 2. Convertir múltiples saltos de línea en máximo doble salto
-    text = text.replaceAll(RegExp(r'\n\s*\n\s*\n+'), '\n\n');
-    
-    // 3. Limpiar espacios al inicio y final de cada línea
-    final lines = text.split('\n');
-    text = lines.map((line) => line.trim()).join('\n');
-    
-    // 4. Trim general
-    text = text.trim();
-    
-    return text;
-  }
-
-  // Extraer título y fecha del nombre del archivo
-  // Formato esperado: "Título del mensaje-DD-MM-AAAA.pdf"
+  /// Extrae título y fecha del nombre del archivo
+  /// Retorna un Map con 'title' (String) y 'date' (DateTime)
+  /// Lanza excepción si el formato es inválido
   Map<String, dynamic> parseFileName(String fileName) {
+    final match = _fileNamePattern.firstMatch(fileName);
+    
+    if (match == null) {
+      throw Exception(
+        'Formato de nombre inválido: $fileName\n'
+        'Formato esperado: ${getFileNameExample()}'
+      );
+    }
+
+    final title = match.group(1)!.trim();
+    final day = int.parse(match.group(2)!);
+    final month = int.parse(match.group(3)!);
+    final year = int.parse(match.group(4)!);
+
+    // Validar fecha
     try {
-      // Remover la extensión .pdf
-      String nameWithoutExt = fileName.replaceAll('.pdf', '').replaceAll('.PDF', '');
-      
-      // Buscar el patrón de fecha al final: DD-MM-AAAA
-      final RegExp datePattern = RegExp(r'-(\d{2})-(\d{2})-(\d{4})$');
-      final match = datePattern.firstMatch(nameWithoutExt);
-      
-      if (match == null) {
-        throw Exception('Formato de nombre de archivo inválido. Esperado: "Título-DD-MM-AAAA.pdf"');
-      }
-      
-      // Extraer día, mes, año
-      final day = int.parse(match.group(1)!);
-      final month = int.parse(match.group(2)!);
-      final year = int.parse(match.group(3)!);
-      
-      // Validar fecha
-      if (month < 1 || month > 12) {
-        throw Exception('Mes inválido: $month');
-      }
-      if (day < 1 || day > 31) {
-        throw Exception('Día inválido: $day');
-      }
-      
       final date = DateTime(year, month, day);
-      
-      // Extraer título (todo antes del patrón de fecha)
-      final title = nameWithoutExt.substring(0, match.start);
-      
-      // Limpiar título (remover guiones extras y espacios)
-      final cleanTitle = title.trim().replaceAll('_', ' ');
-      
-      if (cleanTitle.isEmpty) {
-        throw Exception('El título no puede estar vacío');
-      }
-      
       return {
-        'title': cleanTitle,
+        'title': title,
         'date': date,
       };
     } catch (e) {
-      throw Exception('Error al parsear nombre de archivo "$fileName": $e');
+      throw Exception('Fecha inválida en nombre de archivo: $fileName');
     }
   }
 
-  // Crear un Message desde un archivo PDF
+  /// Crea un Message completo desde un archivo PDF
+  /// Extrae título y fecha del nombre del archivo
+  /// Extrae preacher, location y content del contenido del PDF
   Future<Message> createMessageFromPDF(String pdfPath) async {
+    // Obtener nombre del archivo
+    final fileName = pdfPath.split(Platform.pathSeparator).last;
+    
+    // Extraer título y fecha del nombre
+    final fileNameData = parseFileName(fileName);
+    final title = fileNameData['title'] as String;
+    final date = fileNameData['date'] as DateTime;
+
+    // Extraer contenido del PDF
+    final extractionResult = await extractTextFromPdf(pdfPath);
+
+    // Crear y retornar mensaje
+    return Message(
+      title: title,
+      date: date,
+      preacher: extractionResult.preacher,
+      location: extractionResult.location,
+      content: extractionResult.content,
+      pdfPath: pdfPath,
+    );
+  }
+
+  /// Extrae el texto completo del PDF usando pdftotext
+  /// 
+  /// Retorna un PdfExtractionResult con:
+  /// - preacher: Línea 2 completa (ej: "Predicado por el Hno. Bernabé G. García")
+  /// - location: Línea 4 completa (ej: "En Phoenix, Arizona U.S.A")
+  /// - content: Todo el texto desde la línea 5 en adelante
+  Future<PdfExtractionResult> extractTextFromPdf(String pdfPath) async {
     try {
-      // Obtener nombre del archivo
-      final fileName = pdfPath.split(Platform.pathSeparator).last;
+      // Ejecutar pdftotext para extraer el texto
+      final result = await Process.run(
+        'pdftotext',
+        [
+          '-layout',  // Mantener el layout original
+          '-nopgbrk', // Sin saltos de página
+          pdfPath,
+          '-',        // Salida a stdout
+        ],
+      );
+
+      if (result.exitCode != 0) {
+        throw Exception('Error al extraer texto del PDF: ${result.stderr}');
+      }
+
+      final fullText = result.stdout as String;
       
-      // Parsear título y fecha del nombre
-      final parsed = parseFileName(fileName);
-      final title = parsed['title'] as String;
-      final date = parsed['date'] as DateTime;
+      // Separar por líneas
+      final lines = fullText.split('\n');
       
-      // Extraer contenido del PDF
-      final content = await extractTextFromPDF(pdfPath);
+      // Validar que hay suficientes líneas
+      if (lines.length < 5) {
+        throw Exception(
+          'El PDF no tiene el formato esperado. '
+          'Se esperan al menos 5 líneas (título, predicador, fecha, lugar, contenido)'
+        );
+      }
+
+      // Extraer datos según el formato:
+      // Línea 1: Título (se ignora, viene del nombre del archivo)
+      // Línea 2: Predicador (ej: "Predicado por el Hno. Bernabé G. García")
+      // Línea 3: Fecha (se ignora, viene del nombre del archivo)
+      // Línea 4: Lugar (ej: "En Phoenix, Arizona U.S.A")
+      // Línea 5+: Contenido del mensaje
+      
+      final preacher = lines[1].trim();
+      final location = lines[3].trim();
+      final contentLines = lines.sublist(4); // Desde línea 5 en adelante
+      final content = contentLines.join('\n').trim();
+
+      // Validaciones básicas
+      if (preacher.isEmpty) {
+        throw Exception('No se pudo extraer el predicador (línea 2 vacía)');
+      }
+      
+      if (location.isEmpty) {
+        throw Exception('No se pudo extraer la ubicación (línea 4 vacía)');
+      }
       
       if (content.isEmpty) {
-        throw Exception('El PDF no contiene texto extraíble');
+        throw Exception('No se pudo extraer el contenido del mensaje');
       }
-      
-      // Crear mensaje
-      return Message(
-        title: title,
-        date: date,
+
+      return PdfExtractionResult(
+        preacher: preacher,
+        location: location,
         content: content,
-        pdfPath: pdfPath,
       );
+      
     } catch (e) {
-      throw Exception('Error al crear mensaje desde PDF "$pdfPath": $e');
+      throw Exception('Error al procesar PDF: $e');
     }
   }
 
-  // Procesar múltiples PDFs
-  Future<List<Message>> createMessagesFromPDFs(List<String> pdfPaths, {
-    Function(int current, int total)? onProgress,
-  }) async {
-    final messages = <Message>[];
-    
-    for (int i = 0; i < pdfPaths.length; i++) {
-      try {
-        final message = await createMessageFromPDF(pdfPaths[i]);
-        messages.add(message);
-        
-        // Callback de progreso
-        if (onProgress != null) {
-          onProgress(i + 1, pdfPaths.length);
-        }
-      } catch (e) {
-        // Log error pero continúa con los demás archivos
-        print('Error procesando ${pdfPaths[i]}: $e');
-      }
-    }
-    
-    return messages;
-  }
-
-  // Validar formato de nombre de archivo
-  bool isValidFileName(String fileName) {
+  /// Verifica si pdftotext está instalado en el sistema
+  Future<bool> isPdftotextAvailable() async {
     try {
-      parseFileName(fileName);
-      return true;
+      final result = await Process.run('which', ['pdftotext']);
+      return result.exitCode == 0;
     } catch (e) {
       return false;
     }
   }
 
-  // Obtener ejemplo de formato válido
-  String getFileNameExample() {
-    return 'El amor de Dios-15-03-2010.pdf';
+  /// Obtiene la versión de pdftotext instalada
+  Future<String?> getPdftotextVersion() async {
+    try {
+      final result = await Process.run('pdftotext', ['-v']);
+      return result.stderr.toString().split('\n').first;
+    } catch (e) {
+      return null;
+    }
   }
 }

@@ -552,7 +552,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Text(
                       _currentMessage!.title,
                       style: TextStyle(
-                        fontSize: fontSize * 0.95,
+                        fontSize: fontSize * 1.0, // Proporcional al zoom
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
@@ -572,7 +572,7 @@ class _MainScreenState extends State<MainScreen> {
                         'Prueba',
                         style: TextStyle(
                           color: Colors.orange.shade700,
-                          fontSize: 9,
+                          fontSize: fontSize * 0.5, // Proporcional
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -585,21 +585,21 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Icon(
                     Icons.calendar_today,
-                    size: 10,
+                    size: fontSize * 0.65, // Proporcional
                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                   ),
                   const SizedBox(width: 3),
                   Text(
                     _formatDate(_currentMessage!.date),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: fontSize * 0.7, // Proporcional
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Icon(
                     Icons.person,
-                    size: 10,
+                    size: fontSize * 0.65, // Proporcional
                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                   ),
                   const SizedBox(width: 3),
@@ -607,7 +607,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Text(
                       _currentMessage!.preacher,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: fontSize * 0.7, // Proporcional
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                       ),
                       maxLines: 1,
@@ -622,7 +622,7 @@ class _MainScreenState extends State<MainScreen> {
                 children: [
                   Icon(
                     Icons.location_on,
-                    size: 10,
+                    size: fontSize * 0.65, // Proporcional
                     color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                   ),
                   const SizedBox(width: 3),
@@ -630,7 +630,7 @@ class _MainScreenState extends State<MainScreen> {
                     child: Text(
                       _currentMessage!.location,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: fontSize * 0.7, // Proporcional
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                       ),
                       maxLines: 1,

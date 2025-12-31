@@ -107,25 +107,22 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
     final results = <SearchResult>[];
 
     for (final message in widget.messages) {
-      final normalizedContent = _normalize(message.content);
       final occurrences = <MatchOccurrence>[];
 
-      // Encontrar todas las coincidencias
-      int index = 0;
-      while ((index = normalizedContent.indexOf(normalizedQuery, index)) != -1) {
+      // Encontrar todas las coincidencias con índices correctos en el original
+      final matches = _findAllMatches(message.content, normalizedQuery);
+      
+      for (final matchIndex in matches) {
         final snippet = _extractSnippet(
           message.content,
-          normalizedContent,
           normalizedQuery,
-          index,
+          matchIndex,
         );
         
         occurrences.add(MatchOccurrence(
           snippet: snippet,
-          position: index,
+          position: matchIndex,
         ));
-        
-        index += normalizedQuery.length;
       }
 
       if (occurrences.isNotEmpty) {
@@ -146,31 +143,44 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
     });
   }
 
+  // Encuentra todas las posiciones donde aparece el query normalizado en el contenido original
+  List<int> _findAllMatches(String originalContent, String normalizedQuery) {
+    final matches = <int>[];
+    final queryLength = normalizedQuery.length;
+    
+    for (int i = 0; i <= originalContent.length - queryLength; i++) {
+      final substring = originalContent.substring(i, i + queryLength);
+      if (_normalize(substring) == normalizedQuery) {
+        matches.add(i);
+        i += queryLength - 1; // Saltar a después de esta coincidencia
+      }
+    }
+    
+    return matches;
+  }
+
   Future<void> _performDatabaseSearch(String query) async {
     final dbResults = await _dbHelper.searchFullText(query);
     final results = <SearchResult>[];
     final normalizedQuery = _normalize(query.trim());
 
     for (final dbResult in dbResults) {
-      final normalizedContent = _normalize(dbResult.message.content);
       final occurrences = <MatchOccurrence>[];
 
-      // Encontrar todas las coincidencias individuales
-      int index = 0;
-      while ((index = normalizedContent.indexOf(normalizedQuery, index)) != -1) {
+      // Encontrar todas las coincidencias con índices correctos
+      final matches = _findAllMatches(dbResult.message.content, normalizedQuery);
+      
+      for (final matchIndex in matches) {
         final snippet = _extractSnippet(
           dbResult.message.content,
-          normalizedContent,
           normalizedQuery,
-          index,
+          matchIndex,
         );
         
         occurrences.add(MatchOccurrence(
           snippet: snippet,
-          position: index,
+          position: matchIndex,
         ));
-        
-        index += normalizedQuery.length;
       }
 
       if (occurrences.isNotEmpty) {
@@ -190,15 +200,42 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
 
   String _extractSnippet(
       String originalContent, 
-      String normalizedContent, 
       String query,
       int matchIndex) {
     
-    const snippetRadius = 80;
-    final start = (matchIndex - snippetRadius).clamp(0, originalContent.length);
-    final end = (matchIndex + query.length + snippetRadius).clamp(0, originalContent.length);
-
+    // Configuración del snippet
+    const contextChars = 100; // Caracteres de contexto antes/después
+    
+    // Calcular posiciones de inicio y fin
+    int start = (matchIndex - contextChars).clamp(0, originalContent.length);
+    int end = (matchIndex + query.length + contextChars).clamp(0, originalContent.length);
+    
+    // Intentar ajustar el inicio a un límite de palabra (espacio/salto de línea)
+    // para mejor legibilidad, pero solo si no estamos muy lejos
+    if (start > 0) {
+      for (int i = start; i < start + 20 && i < matchIndex; i++) {
+        if (originalContent[i] == ' ' || originalContent[i] == '\n') {
+          start = i + 1;
+          break;
+        }
+      }
+    }
+    
+    // Intentar ajustar el final a un límite de palabra
+    if (end < originalContent.length) {
+      for (int i = end; i > end - 20 && i > matchIndex + query.length; i--) {
+        if (originalContent[i] == ' ' || originalContent[i] == '\n') {
+          end = i;
+          break;
+        }
+      }
+    }
+    
+    // Extraer snippet
     String snippet = originalContent.substring(start, end).trim();
+    
+    // Reemplazar múltiples espacios/saltos de línea con un solo espacio
+    snippet = snippet.replaceAll(RegExp(r'\s+'), ' ');
 
     if (start > 0) snippet = '...$snippet';
     if (end < originalContent.length) snippet = '$snippet...';

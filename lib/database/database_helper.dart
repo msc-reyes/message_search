@@ -38,8 +38,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         date TEXT NOT NULL,
-        preacher TEXT NOT NULL,
-        location TEXT NOT NULL,
+        header TEXT NOT NULL,
         pdf_path TEXT NOT NULL,
         content TEXT NOT NULL,
         created_at TEXT NOT NULL

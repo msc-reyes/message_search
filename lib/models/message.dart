@@ -2,8 +2,7 @@ class Message {
   final int? id;
   final String title;
   final DateTime date;
-  final String preacher;
-  final String location;
+  final String header;
   final String content;
   final String pdfPath;
 
@@ -11,8 +10,7 @@ class Message {
     this.id,
     required this.title,
     required this.date,
-    required this.preacher,
-    required this.location,
+    required this.header,
     required this.content,
     required this.pdfPath,
   });
@@ -23,8 +21,7 @@ class Message {
       'id': id,
       'title': title,
       'date': date.toIso8601String(),
-      'preacher': preacher,
-      'location': location,
+      'header': header,
       'content': content,
       'pdf_path': pdfPath,
       'created_at': DateTime.now().toIso8601String(),
@@ -37,8 +34,7 @@ class Message {
       id: map['id'] as int?,
       title: map['title'] as String,
       date: DateTime.parse(map['date'] as String),
-      preacher: map['preacher'] as String,
-      location: map['location'] as String,
+      header: map['header'] as String,
       content: map['content'] as String,
       pdfPath: map['pdf_path'] as String,
     );
@@ -49,8 +45,7 @@ class Message {
     int? id,
     String? title,
     DateTime? date,
-    String? preacher,
-    String? location,
+    String? header,
     String? content,
     String? pdfPath,
   }) {
@@ -58,15 +53,14 @@ class Message {
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
-      preacher: preacher ?? this.preacher,
-      location: location ?? this.location,
+      header: header ?? this.header,
       content: content ?? this.content,
       pdfPath: pdfPath ?? this.pdfPath,
     );
   }
 }
 
-// Datos dummy para pruebas (actualizados con preacher y location)
+// Datos dummy para pruebas
 class DummyData {
   static List<Message> getMessages() {
     return [
@@ -74,8 +68,8 @@ class DummyData {
         id: 1,
         title: "El Fundamento de Nuestra Fe",
         date: DateTime(2010, 3, 5),
-        preacher: "Predicado por el Hno. Bernabé G. García",
-        location: "En Phoenix, Arizona U.S.A",
+        header: """Predicado por el Hno. Bernabé G. García
+En Phoenix, Arizona U.S.A""",
         content: """Vamos a ponernos de pie para leer la Palabra.
 
 El fundamento de nuestra fe está en Jesucristo. 
@@ -93,8 +87,8 @@ Recordemos siempre que Él es fiel y verdadero, y que Su amor por nosotros nunca
         id: 2,
         title: "La Gracia Transformadora de Dios",
         date: DateTime(2010, 8, 15),
-        preacher: "Predicado por el Hno. Bernabé G. García",
-        location: "En Phoenix, Arizona U.S.A",
+        header: """Predicado por el Hno. Bernabé G. García
+En Phoenix, Arizona U.S.A""",
         content: """Vamos a ponernos de pie para leer la Palabra.
 
 La gracia de Dios es verdaderamente transformadora.
@@ -112,8 +106,8 @@ Vivamos cada día agradecidos por esta gracia maravillosa que nos ha sido dada. 
         id: 3,
         title: "El Amor de Dios Manifestado",
         date: DateTime(2011, 2, 20),
-        preacher: "Predicado por el Hno. Bernabé G. García",
-        location: "En Phoenix, Arizona U.S.A",
+        header: """Predicado por el Hno. Bernabé G. García
+En Phoenix, Arizona U.S.A""",
         content: """Vamos a ponernos de pie para leer la Palabra.
 
 El amor de Dios ha sido manifestado de muchas maneras.
@@ -133,8 +127,8 @@ Que podamos experimentar cada día más de este amor incomparable. Que nuestro c
         id: 4,
         title: "La Fidelidad de Dios en Tiempos Difíciles",
         date: DateTime(2012, 6, 10),
-        preacher: "Predicado por el Hno. Bernabé G. García",
-        location: "En Phoenix, Arizona U.S.A",
+        header: """Predicado por el Hno. Bernabé G. García
+En Phoenix, Arizona U.S.A""",
         content: """Vamos a ponernos de pie para leer la Palabra.
 
 La fidelidad de Dios permanece constante, especialmente en tiempos difíciles.
@@ -154,8 +148,8 @@ En momentos de duda, recordemos las veces que Él nos ha sostenido. Cada prueba 
         id: 5,
         title: "Viviendo en el Espíritu",
         date: DateTime(2013, 11, 3),
-        preacher: "Predicado por el Hno. Bernabé G. García",
-        location: "En Phoenix, Arizona U.S.A",
+        header: """Predicado por el Hno. Bernabé G. García
+En Phoenix, Arizona U.S.A""",
         content: """Vamos a ponernos de pie para leer la Palabra.
 
 Vivir en el Espíritu es más que una doctrina; es una realidad diaria.

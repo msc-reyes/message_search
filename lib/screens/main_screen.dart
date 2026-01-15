@@ -580,7 +580,7 @@ class _MainScreenState extends State<MainScreen> {
                 ],
               ),
               const SizedBox(height: 4),
-              // Fecha y Predicador en misma línea
+              // Fecha
               Row(
                 children: [
                   Icon(
@@ -596,48 +596,18 @@ class _MainScreenState extends State<MainScreen> {
                       color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Icon(
-                    Icons.person,
-                    size: fontSize * 0.65, // Proporcional
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Text(
-                      _currentMessage!.preacher,
-                      style: TextStyle(
-                        fontSize: fontSize * 0.7, // Proporcional
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
                 ],
               ),
-              const SizedBox(height: 4),
-              // Lugar
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    size: fontSize * 0.65, // Proporcional
-                    color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Text(
-                      _currentMessage!.location,
-                      style: TextStyle(
-                        fontSize: fontSize * 0.7, // Proporcional
-                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 6),
+              // Header completo (multilínea)
+              Text(
+                _currentMessage!.header,
+                style: TextStyle(
+                  fontSize: fontSize * 0.7, // Proporcional
+                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  fontStyle: FontStyle.italic,
+                  height: 1.3,
+                ),
               ),
             ],
           ),

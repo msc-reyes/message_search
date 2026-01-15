@@ -1,14 +1,13 @@
 import 'dart:io';
+import 'dart:convert';
 import '../models/message.dart';
 
 class PdfExtractionResult {
-  final String preacher;
-  final String location;
+  final String header;
   final String content;
 
   PdfExtractionResult({
-    required this.preacher,
-    required this.location,
+    required this.header,
     required this.content,
   });
 }
@@ -63,7 +62,7 @@ class PdfService {
 
   /// Crea un Message completo desde un archivo PDF
   /// Extrae título y fecha del nombre del archivo
-  /// Extrae preacher, location y content del contenido del PDF
+  /// Extrae header y content del contenido del PDF
   Future<Message> createMessageFromPDF(String pdfPath) async {
     // Obtener nombre del archivo
     final fileName = pdfPath.split(Platform.pathSeparator).last;
@@ -80,8 +79,7 @@ class PdfService {
     return Message(
       title: title,
       date: date,
-      preacher: extractionResult.preacher,
-      location: extractionResult.location,
+      header: extractionResult.header,
       content: extractionResult.content,
       pdfPath: pdfPath,
     );
@@ -90,9 +88,8 @@ class PdfService {
   /// Extrae el texto completo del PDF usando pdftotext
   /// 
   /// Retorna un PdfExtractionResult con:
-  /// - preacher: Línea 2 completa (ej: "Predicado por el Hno. Bernabé G. García")
-  /// - location: Línea 4 completa (ej: "En Phoenix, Arizona U.S.A")
-  /// - content: Todo el texto desde la línea 5 en adelante
+  /// - header: Todo el texto entre los asteriscos * ... *
+  /// - content: Todo el texto después del segundo asterisco
   Future<PdfExtractionResult> extractTextFromPdf(String pdfPath) async {
     try {
       // Ejecutar pdftotext para extraer el texto
@@ -104,6 +101,7 @@ class PdfService {
           pdfPath,
           '-',        // Salida a stdout
         ],
+        stdoutEncoding: utf8, // Solución para acentos en Windows
       );
 
       if (result.exitCode != 0) {
@@ -112,36 +110,41 @@ class PdfService {
 
       final fullText = result.stdout as String;
       
-      // Separar por líneas
-      final lines = fullText.split('\n');
-      
-      // Validar que hay suficientes líneas
-      if (lines.length < 5) {
+      // Buscar el primer asterisco
+      final firstAsteriskIndex = fullText.indexOf('*');
+      if (firstAsteriskIndex == -1) {
         throw Exception(
-          'El PDF no tiene el formato esperado. '
-          'Se esperan al menos 5 líneas (título, predicador, fecha, lugar, contenido)'
+          'No se encontró el delimitador de inicio del header (*). '
+          'Verifica que el PDF tenga el formato correcto con el header entre asteriscos.'
         );
       }
 
-      // Extraer datos según el formato:
-      // Línea 1: Título (se ignora, viene del nombre del archivo)
-      // Línea 2: Predicador (ej: "Predicado por el Hno. Bernabé G. García")
-      // Línea 3: Fecha (se ignora, viene del nombre del archivo)
-      // Línea 4: Lugar (ej: "En Phoenix, Arizona U.S.A")
-      // Línea 5+: Contenido del mensaje
+      // Buscar el segundo asterisco (después del primero)
+      final secondAsteriskIndex = fullText.indexOf('*', firstAsteriskIndex + 1);
+      if (secondAsteriskIndex == -1) {
+        throw Exception(
+          'No se encontró el delimitador de fin del header (*). '
+          'Verifica que el PDF tenga el formato correcto con el header entre asteriscos.'
+        );
+      }
+
+      // Extraer header (sin los asteriscos)
+      final headerRaw = fullText.substring(
+        firstAsteriskIndex + 1,
+        secondAsteriskIndex,
+      ).trim();
       
-      final preacher = lines[1].trim();
-      final location = lines[3].trim();
-      final contentLines = lines.sublist(4); // Desde línea 5 en adelante
-      final content = contentLines.join('\n').trim();
+      // Limpiar espacios de cada línea del header (para textos centrados o con indentación)
+      final headerLines = headerRaw.split('\n');
+      final cleanedHeaderLines = headerLines.map((line) => line.trim()).toList();
+      final header = cleanedHeaderLines.join('\n');
+
+      // Extraer contenido (después del segundo asterisco)
+      final content = fullText.substring(secondAsteriskIndex + 1).trim();
 
       // Validaciones básicas
-      if (preacher.isEmpty) {
-        throw Exception('No se pudo extraer el predicador (línea 2 vacía)');
-      }
-      
-      if (location.isEmpty) {
-        throw Exception('No se pudo extraer la ubicación (línea 4 vacía)');
+      if (header.isEmpty) {
+        throw Exception('El header está vacío (texto entre asteriscos)');
       }
       
       if (content.isEmpty) {
@@ -149,8 +152,7 @@ class PdfService {
       }
 
       return PdfExtractionResult(
-        preacher: preacher,
-        location: location,
+        header: header,
         content: content,
       );
       

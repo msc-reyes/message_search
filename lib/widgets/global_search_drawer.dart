@@ -251,6 +251,36 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
+  /// Formatea la fecha del mensaje usando dateDisplay si está disponible
+  String _formatMessageDate(Message message) {
+    if (message.dateDisplay != null) {
+      // Es una fecha parcial, parsear y formatear el display
+      final parts = message.dateDisplay!.split('-');
+      final day = parts[0];
+      final month = parts[1];
+      final year = parts[2];
+      
+      const months = [
+        'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+        'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+      ];
+      
+      // Construir string basado en qué partes son 00
+      if (day == '00' && month == '00') {
+        return year; // Solo año
+      } else if (day == '00') {
+        final monthInt = int.parse(month);
+        return '${months[monthInt - 1]} $year'; // Mes y año
+      } else {
+        final monthInt = int.parse(month);
+        return '$day ${months[monthInt - 1]} $year'; // Fecha completa
+      }
+    }
+    
+    // Fecha completa, usar formato normal
+    return _formatDate(message.date);
+  }
+
   void _toggleExpanded(int index) {
     setState(() {
       if (_expandedResults.contains(index)) {
@@ -506,7 +536,7 @@ class _GlobalSearchDrawerState extends State<GlobalSearchDrawer> {
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          _formatDate(result.message.date),
+                                          _formatMessageDate(result.message),
                                           style: Theme.of(context)
                                               .textTheme
                                               .bodyMedium

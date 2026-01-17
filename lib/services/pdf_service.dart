@@ -27,11 +27,20 @@ class PdfService {
 
   /// Retorna un ejemplo del formato de nombre esperado
   String getFileNameExample() {
-    return 'El Amor de Dios-15-08-2010.pdf';
+    return 'El Amor de Dios-15-08-2010.pdf (o -00-08-2010.pdf si no hay día, o -00-00-2010.pdf si solo hay año)';
   }
 
   /// Extrae título y fecha del nombre del archivo
-  /// Retorna un Map con 'title' (String) y 'date' (DateTime)
+  /// Retorna un Map con:
+  /// - 'title' (String): Título del mensaje
+  /// - 'date' (DateTime): Fecha para ordenar (con día/mes = 1 si falta)
+  /// - 'dateDisplay' (String?): Fecha original si es parcial, null si es completa
+  /// 
+  /// Soporta formatos:
+  /// - Completo: Título-15-08-2010.pdf → date: 15-08-2010, dateDisplay: null
+  /// - Sin día: Título-00-08-2010.pdf → date: 01-08-2010, dateDisplay: "00-08-2010"
+  /// - Solo año: Título-00-00-2010.pdf → date: 01-01-2010, dateDisplay: "00-00-2010"
+  /// 
   /// Lanza excepción si el formato es inválido
   Map<String, dynamic> parseFileName(String fileName) {
     final match = _fileNamePattern.firstMatch(fileName);
@@ -44,33 +53,48 @@ class PdfService {
     }
 
     final title = match.group(1)!.trim();
-    final day = int.parse(match.group(2)!);
-    final month = int.parse(match.group(3)!);
-    final year = int.parse(match.group(4)!);
+    final dayStr = match.group(2)!;
+    final monthStr = match.group(3)!;
+    final yearStr = match.group(4)!;
+    
+    final day = int.parse(dayStr);
+    final month = int.parse(monthStr);
+    final year = int.parse(yearStr);
 
-    // Validar fecha
-    try {
-      final date = DateTime(year, month, day);
-      return {
-        'title': title,
-        'date': date,
-      };
-    } catch (e) {
-      throw Exception('Fecha inválida en nombre de archivo: $fileName');
-    }
+    // Detectar si es fecha parcial
+    final isPartialDate = day == 0 || month == 0;
+    
+    // Crear fecha para BD (con relleno si es necesario)
+    final dateForDb = DateTime(
+      year,
+      month == 0 ? 1 : month,  // Si mes es 0, usar 1
+      day == 0 ? 1 : day,      // Si día es 0, usar 1
+    );
+    
+    // Crear dateDisplay solo si es fecha parcial
+    final String? dateDisplay = isPartialDate 
+        ? '$dayStr-$monthStr-$yearStr' 
+        : null;
+
+    return {
+      'title': title,
+      'date': dateForDb,
+      'dateDisplay': dateDisplay,
+    };
   }
 
   /// Crea un Message completo desde un archivo PDF
-  /// Extrae título y fecha del nombre del archivo
+  /// Extrae título, fecha y dateDisplay del nombre del archivo
   /// Extrae header y content del contenido del PDF
   Future<Message> createMessageFromPDF(String pdfPath) async {
     // Obtener nombre del archivo
     final fileName = pdfPath.split(Platform.pathSeparator).last;
     
-    // Extraer título y fecha del nombre
+    // Extraer título, fecha y dateDisplay del nombre
     final fileNameData = parseFileName(fileName);
     final title = fileNameData['title'] as String;
     final date = fileNameData['date'] as DateTime;
+    final dateDisplay = fileNameData['dateDisplay'] as String?;
 
     // Extraer contenido del PDF
     final extractionResult = await extractTextFromPdf(pdfPath);
@@ -79,6 +103,7 @@ class PdfService {
     return Message(
       title: title,
       date: date,
+      dateDisplay: dateDisplay,
       header: extractionResult.header,
       content: extractionResult.content,
       pdfPath: pdfPath,

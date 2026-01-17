@@ -65,7 +65,7 @@ class _MessageListDrawerState extends State<MessageListDrawer> {
             if (_searchType == 'title') {
               return message.title.toLowerCase().contains(_searchQuery);
             } else {
-              return _formatDate(message.date).toLowerCase().contains(_searchQuery);
+              return _formatMessageDate(message).toLowerCase().contains(_searchQuery);
             }
           }).toList();
           _isSearching = false;
@@ -115,6 +115,36 @@ class _MessageListDrawerState extends State<MessageListDrawer> {
       'dic'
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
+  /// Formatea la fecha del mensaje usando dateDisplay si está disponible
+  String _formatMessageDate(Message message) {
+    if (message.dateDisplay != null) {
+      // Es una fecha parcial, parsear y formatear el display
+      final parts = message.dateDisplay!.split('-');
+      final day = parts[0];
+      final month = parts[1];
+      final year = parts[2];
+      
+      const months = [
+        'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+        'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
+      ];
+      
+      // Construir string basado en qué partes son 00
+      if (day == '00' && month == '00') {
+        return year; // Solo año
+      } else if (day == '00') {
+        final monthInt = int.parse(month);
+        return '${months[monthInt - 1]} $year'; // Mes y año
+      } else {
+        final monthInt = int.parse(month);
+        return '$day ${months[monthInt - 1]} $year'; // Fecha completa
+      }
+    }
+    
+    // Fecha completa, usar formato normal
+    return _formatDate(message.date);
   }
 
   @override
@@ -318,7 +348,7 @@ class _MessageListDrawerState extends State<MessageListDrawer> {
                                   : FontWeight.normal,
                             ),
                           ),
-                          subtitle: Text(_formatDate(message.date)),
+                          subtitle: Text(_formatMessageDate(message)),
                           onTap: () => widget.onMessageSelected(message),
                         ),
                       );

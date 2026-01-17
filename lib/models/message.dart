@@ -2,6 +2,7 @@ class Message {
   final int? id;
   final String title;
   final DateTime date;
+  final String? dateDisplay; // null si fecha completa, "00-08-2010" si es parcial
   final String header;
   final String content;
   final String pdfPath;
@@ -10,6 +11,7 @@ class Message {
     this.id,
     required this.title,
     required this.date,
+    this.dateDisplay,
     required this.header,
     required this.content,
     required this.pdfPath,
@@ -21,6 +23,7 @@ class Message {
       'id': id,
       'title': title,
       'date': date.toIso8601String(),
+      'date_display': dateDisplay,
       'header': header,
       'content': content,
       'pdf_path': pdfPath,
@@ -34,6 +37,7 @@ class Message {
       id: map['id'] as int?,
       title: map['title'] as String,
       date: DateTime.parse(map['date'] as String),
+      dateDisplay: map['date_display'] as String?,
       header: map['header'] as String,
       content: map['content'] as String,
       pdfPath: map['pdf_path'] as String,
@@ -45,6 +49,7 @@ class Message {
     int? id,
     String? title,
     DateTime? date,
+    String? dateDisplay,
     String? header,
     String? content,
     String? pdfPath,
@@ -53,6 +58,7 @@ class Message {
       id: id ?? this.id,
       title: title ?? this.title,
       date: date ?? this.date,
+      dateDisplay: dateDisplay ?? this.dateDisplay,
       header: header ?? this.header,
       content: content ?? this.content,
       pdfPath: pdfPath ?? this.pdfPath,
